@@ -11,13 +11,13 @@ st.markdown(
 Upload your **shipment CSV** and then map the corresponding column names:
 
 - **Identifier** (container or row identifier)
-- **Shipment type** (must contain the value `"Container"` for container rows)
+- **Shipment type** (column that contains values like `"CONTAINER_ID"` or `"Container"`)
 - **BOL ID**
 - **AJ**: Destination ETA
 - **AK**: Destination ATA
 
 The app will:
-- Filter rows where `shipment_type = "Container"`.
+- Detect container rows (treating values `CONTAINER` and `CONTAINER_ID` as containers).
 - Group by **BOL ID**.
 - Check **AJ** and **AK** consistency across containers.
 - Generate 6 CSV files and package them into a **ZIP**.
@@ -60,17 +60,22 @@ if uploaded_file is not None:
             work_df["aj"] = work_df[aj_col].astype(str)
             work_df["ak"] = work_df[ak_col].astype(str)
 
-            # Filter containers
-            containers = work_df[work_df["shipment_type"] == "Container"].copy()
+            # ---- Filter containers (CONTAINER or CONTAINER_ID) ----
+            containers = work_df[
+                work_df["shipment_type"]
+                .str.strip()
+                .str.upper()
+                .isin(["CONTAINER", "CONTAINER_ID"])
+            ].copy()
 
             if containers.empty:
                 st.warning(
-                    "No rows found with shipment_type = 'Container' "
+                    "No container rows found. I looked for values 'Container' or 'CONTAINER_ID' "
                     f"in column '{shipment_type_col}'."
                 )
             else:
                 st.info(
-                    f"{len(containers)} rows where {shipment_type_col} = 'Container'."
+                    f"{len(containers)} rows detected as containers using column '{shipment_type_col}'."
                 )
 
                 # === UNIQUE BOLS ===
@@ -117,12 +122,12 @@ if uploaded_file is not None:
                 summary_rows = [
                     {
                         "case": "total_container_rows",
-                        "description": "Total rows with shipment_type = 'Container'",
+                        "description": "Total rows detected as containers",
                         "count": len(containers),
                     },
                     {
                         "case": "unique_bols",
-                        "description": "Distinct BOL IDs among Container rows (including blanks)",
+                        "description": "Distinct BOL IDs among container rows (including blanks)",
                         "count": unique_bols["bol_id"].nunique(dropna=False),
                     },
                     {
